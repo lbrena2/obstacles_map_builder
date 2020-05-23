@@ -94,11 +94,10 @@ if __name__ == "__main__":
 
     # This is to create a cell in which I put che prediction. In other words, a element of obstacle_map_coords is
     # (x,y,prediction)
-    obstacle_map_coords = np.hstack((obstacle_map_coords, np.ones((obstacle_map_coords.shape[0], 1))))
+    obstacle_map_coords = np.hstack((obstacle_map_coords, np.ones((obstacle_map_coords.shape[0], 1)) * -1))
 
 
     # Create the prediction matrix coord
-    # prediction_matrix_coords_homo = np.array([[x, 0, 1.] for x in range(0, 65)])
     prediction_matrix_coords_homo = [(0.063, 0.0493),
                                      (0.0756, 0.0261),
                                      (0.08, 0),
@@ -107,9 +106,10 @@ if __name__ == "__main__":
 
     # Create the actual set of coordinates of the predictions. Those coords are in robot reference frame.
     # The shape is 325x2.
-    prediction_matrix_coords = np.array([np.array([x + (float(d)/100), y]) for x, y in prediction_matrix_coords_homo for d in range(0, 31)])
+    prediction_matrix_coords = np.array([np.array([x + (float(d)/100), y])
+                                         for x, y in prediction_matrix_coords_homo for d in range(0, 31)])
 
-    visualize_map(obstacle_map_coords, prediction_matrix_coords)
+    # visualize_map(obstacle_map_coords, prediction_matrix_coords)
 
     # Given the prediction coords get the corresponding coord in the obstacle map and assign it the prediction value
     for prediction, pose in zip(out, poses):
@@ -118,21 +118,25 @@ if __name__ == "__main__":
 
         # prediction_matrix_coords in world ref frame
         prediction_matrix_coords_world = np.array(
-            [np.matmul(transform_matrix, coord) for coord in prediction_matrix_coords])
+            [np.matmul(transform_matrix, np.hstack((coord, 1))) for coord in prediction_matrix_coords])
 
         # TODO: create a util to print the  obstacle_map_coords and  prediction_matrix_coords_world->
         # implement auto-refresh of the plot
-        visualize_map(obstacle_map_coords, prediction_matrix_coords_world)
+        # visualize_map(obstacle_map_coords, prediction_matrix_coords_world)
 
         # For each coord in  prediction_matrix_coords_world find the corrisponding one in obstacle_map_coords.
         # when you got the corrisponding coords put in obstacle_map_coords_homo
-        # TODO: optimize, ont feasible
-        for idx, coord in tqdm.tqdm(enumerate(prediction_matrix_coords_world), desc='updating obstacle map'):
-            corresponding_coord_idx = find_closest_cord(coord, obstacle_map_coords)
+
+        for coord_idx, coord in enumerate(prediction_matrix_coords_world):
+            #TODO: this is the right approach, just verify indices and values
+            corresponding_coord_idx = np.argmin(
+                np.linalg.norm(obstacle_map_coords[:, :2] - coord[:2], axis=1))
             # pprint('prediction_matrix_coords: (%f, %f) obstacle_map_coord: (%f, %f)'
             #         %(coord[0],
             #         coord[1],
-            #         obstacle_map_coords[:, :2][corresponding_coord][0],
-            #         obstacle_map_coords[:, :2][corresponding_coord][1]))
-            # TODO: check this assigment operation if it makes sense
-            obstacle_map_coords[corresponding_coord_idx][2] = prediction[idx]
+            #         obstacle_map_coords[corresponding_coord_idx][0],
+            #         obstacle_map_coords[corresponding_coord_idx][1]))
+            #TODO: achtung about the prediction initialization value of obstacle_map_coords
+            if prediction[coord_idx] < obstacle_map_coords[corresponding_coord_idx][2]:
+                obstacle_map_coords[corresponding_coord_idx][2] = prediction[coord_idx]
+            print()
