@@ -92,10 +92,7 @@ if __name__ == "__main__":
         np.linspace(-70, 70, 280)
     )).reshape([2, -1]).T
 
-    # This is to create a cell in which I put che prediction. In other words, a element of obstacle_map_coords is
-    # (x,y,prediction)
-    obstacle_map_coords = np.hstack((obstacle_map_coords, np.ones((obstacle_map_coords.shape[0], 1))))
-
+    obstacle_map_values = np.ones(obstacle_map_coords.shape[0])
 
     # Create the prediction matrix coord
     prediction_matrix_coords_homo = [(0.063, 0.0493),
@@ -106,7 +103,7 @@ if __name__ == "__main__":
 
     # Create the actual set of coordinates of the predictions. Those coords are in robot reference frame.
     # The shape is 325x2.
-    prediction_matrix_coords = np.array([np.array([x + (float(d)/100), y])
+    prediction_matrix_coords = np.array([np.array([x + (float(d) / 100), y])
                                          for x, y in prediction_matrix_coords_homo for d in range(0, 31)])
 
     # visualize_map(obstacle_map_coords, prediction_matrix_coords)
@@ -121,22 +118,25 @@ if __name__ == "__main__":
             [np.matmul(transform_matrix, np.hstack((coord, 1))) for coord in prediction_matrix_coords])
 
         # TODO: create a util to print the  obstacle_map_coords and  prediction_matrix_coords_world->
-        # implement auto-refresh of the plot
+        #   implement auto-refresh of the plot
         # visualize_map(obstacle_map_coords, prediction_matrix_coords_world)
 
         # For each coord in  prediction_matrix_coords_world find the corrisponding one in obstacle_map_coords.
         # when you got the corrisponding coords put in obstacle_map_coords_homo
 
         for coord_idx, coord in enumerate(prediction_matrix_coords_world):
-            #TODO: this is the right approach, just verify indices and values
+            # TODO: this is the right approach, just verify indices and values
             corresponding_coord_idx = np.argmin(
-                np.linalg.norm(obstacle_map_coords[:, :2] - coord[:2], axis=1))
+                np.linalg.norm(obstacle_map_coords - coord[:2], axis=1))
             # pprint('prediction_matrix_coords: (%f, %f) obstacle_map_coord: (%f, %f)'
             #         %(coord[0],
             #         coord[1],
             #         obstacle_map_coords[corresponding_coord_idx][0],
             #         obstacle_map_coords[corresponding_coord_idx][1]))
-            #TODO: achtung about the prediction initialization value of obstacle_map_coords
-            if prediction[coord_idx] < obstacle_map_coords[corresponding_coord_idx][2]:
-                obstacle_map_coords[corresponding_coord_idx][2] = prediction[coord_idx]
-    print()
+            # TODO: achtung about the prediction initialization value of obstacle_map_coords
+            if prediction[coord_idx] < obstacle_map_values[corresponding_coord_idx]:
+                obstacle_map_values[corresponding_coord_idx] = prediction[coord_idx]
+    #TODO: prolly I get this result cause the bag is only 54 seconds long! Atm i cannot try with my old bags cause
+    # I should change the pitch of the camera.
+    ax = sns.heatmap(obstacle_map_values.reshape((280,280)), linewidth=0.5)
+    plt.show()
