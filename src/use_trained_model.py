@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
     # This is to create a cell in which I put che prediction. In other words, a element of obstacle_map_coords is
     # (x,y,prediction)
-    obstacle_map_coords = np.hstack((obstacle_map_coords, np.ones((obstacle_map_coords.shape[0], 1)) * -1))
+    obstacle_map_coords = np.hstack((obstacle_map_coords, np.ones((obstacle_map_coords.shape[0], 1))))
 
 
     # Create the prediction matrix coord
@@ -139,4 +139,4 @@ if __name__ == "__main__":
             #TODO: achtung about the prediction initialization value of obstacle_map_coords
             if prediction[coord_idx] < obstacle_map_coords[corresponding_coord_idx][2]:
                 obstacle_map_coords[corresponding_coord_idx][2] = prediction[coord_idx]
-            print()
+    print()
