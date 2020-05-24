@@ -55,7 +55,7 @@ if __name__ == "__main__":
     model.eval()
     print(model)
 
-    filename = "/home/usi/catkin_ws/src/obstacles_map_builder/data/h5dataset_Mirko_approach/2020-05-21 22:02:46.245455.h5"
+    filename = "/home/usi/catkin_ws/src/obstacles_map_builder/data/h5dataset_Mirko_approach/2020-05-24 13:51:01.128838.h5"
 
     # TODO this works only with the toy example of a .h5 with 1 bag file only
     with h5py.File(filename, "r") as f:
@@ -77,8 +77,8 @@ if __name__ == "__main__":
     input = input.permute([0, 3, 1, 2])
     out = model(input.float())
 
-    # PLOT
-    # img_idx = 300
+    # plot of a pic and the relative predction
+    # img_idx = 400
     # plt.subplot(1, 2, 1)
     # img = camera_images[img_idx] - camera_images[img_idx].min() / (camera_images[img_idx].max() - camera_images[img_idx].min())
     # plt.imshow(img[:, :, ::-1])
@@ -88,11 +88,11 @@ if __name__ == "__main__":
     # plt.show()
 
     obstacle_map_coords = np.stack(np.meshgrid(
-        np.linspace(-70, 70, 280),
-        np.linspace(-70, 70, 280)
+        np.linspace(-100, 100, 200),
+        np.linspace(-100, 100, 200),
     )).reshape([2, -1]).T
 
-    obstacle_map_values = np.ones(obstacle_map_coords.shape[0])
+    obstacle_map_values = [[] for _ in range(obstacle_map_coords.shape[0])]
 
     # Create the prediction matrix coord
     prediction_matrix_coords_homo = [(0.063, 0.0493),
@@ -102,14 +102,13 @@ if __name__ == "__main__":
                                      (0.063, -0.0493)]
 
     # Create the actual set of coordinates of the predictions. Those coords are in robot reference frame.
-    # The shape is 325x2.
     prediction_matrix_coords = np.array([np.array([x + (float(d) / 100), y])
                                          for x, y in prediction_matrix_coords_homo for d in range(0, 31)])
 
     # visualize_map(obstacle_map_coords, prediction_matrix_coords)
 
     # Given the prediction coords get the corresponding coord in the obstacle map and assign it the prediction value
-    for prediction, pose in zip(out, poses):
+    for prediction, pose in tqdm.tqdm(zip(out, poses), desc='creating obstacle map'):
         # create the transformation from robot reference frame to world frame
         transform_matrix = robot_frame_to_world_transf(pose)
 
@@ -125,7 +124,6 @@ if __name__ == "__main__":
         # when you got the corrisponding coords put in obstacle_map_coords_homo
 
         for coord_idx, coord in enumerate(prediction_matrix_coords_world):
-            # TODO: this is the right approach, just verify indices and values
             corresponding_coord_idx = np.argmin(
                 np.linalg.norm(obstacle_map_coords - coord[:2], axis=1))
             # pprint('prediction_matrix_coords: (%f, %f) obstacle_map_coord: (%f, %f)'
@@ -134,9 +132,13 @@ if __name__ == "__main__":
             #         obstacle_map_coords[corresponding_coord_idx][0],
             #         obstacle_map_coords[corresponding_coord_idx][1]))
             # TODO: achtung about the prediction initialization value of obstacle_map_coords
-            if prediction[coord_idx] < obstacle_map_values[corresponding_coord_idx]:
-                obstacle_map_values[corresponding_coord_idx] = prediction[coord_idx]
-    #TODO: prolly I get this result cause the bag is only 54 seconds long! Atm i cannot try with my old bags cause
-    # I should change the pitch of the camera.
-    ax = sns.heatmap(obstacle_map_values.reshape((280,280)), linewidth=0.5)
+            obstacle_map_values[corresponding_coord_idx].append(prediction[coord_idx].detach().numpy())
+
+    obstacle_map_values = [np.mean(prediction_values) for prediction_values in obstacle_map_values
+                           if prediction_values is not None]
+
+    ax = sns.heatmap(np.array(obstacle_map_values).reshape((200, 200)), linewidth=0.5)
     plt.show()
+
+
+    #TODO: remember that i had modified the pitch camera in the original launch file from 0.2 to 0.5
