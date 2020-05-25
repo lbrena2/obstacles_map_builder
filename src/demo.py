@@ -1,7 +1,14 @@
+from pandas import DataFrame
 import numpy as np
-from scipy import stats
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-a = [value for value in range(20) if value%2==0]
-print(a)
+Index = np.linspace(1, -1, 20)
+Cols = np.linspace(1, -1, 20)
+df = DataFrame(abs(np.random.randn(20, 20)), index=Index, columns=Cols)
 
-np.array(a).reshape((5,5))
+sns.heatmap(df, annot=True)
+
+plt.show()
+
+

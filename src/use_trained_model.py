@@ -55,7 +55,7 @@ if __name__ == "__main__":
     model.eval()
     print(model)
 
-    filename = "/home/usi/catkin_ws/src/obstacles_map_builder/data/h5dataset_Mirko_approach/2020-05-24 13:51:01.128838.h5"
+    filename = "/home/usi/catkin_ws/src/obstacles_map_builder/data/h5dataset_Mirko_approach/2020-05-24 23:19:55.501699.h5"
 
     # TODO this works only with the toy example of a .h5 with 1 bag file only
     with h5py.File(filename, "r") as f:
@@ -116,8 +116,6 @@ if __name__ == "__main__":
         prediction_matrix_coords_world = np.array(
             [np.matmul(transform_matrix, np.hstack((coord, 1))) for coord in prediction_matrix_coords])
 
-        # TODO: create a util to print the  obstacle_map_coords and  prediction_matrix_coords_world->
-        #   implement auto-refresh of the plot
         # visualize_map(obstacle_map_coords, prediction_matrix_coords_world)
 
         # For each coord in  prediction_matrix_coords_world find the corrisponding one in obstacle_map_coords.
@@ -142,3 +140,9 @@ if __name__ == "__main__":
 
 
     #TODO: remember that i had modified the pitch camera in the original launch file from 0.2 to 0.5
+
+    #TODO:
+    #   1- create a controller that spin the Thymio in place usign what Mirko said in Slack
+    #   2- Wait Mirko to build the simple map/Resolve the funcking Gazebo save as bug
+    #   3- Create a pipiline such as you can create a .h5 with a single command
+    #   4- Create a dynamic plot?
