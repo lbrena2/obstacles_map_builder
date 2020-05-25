@@ -43,7 +43,7 @@ if __name__ == "__main__":
     model.eval()
     print(model)
 
-    filename = "/home/usi/catkin_ws/src/obstacles_map_builder/data/h5dataset_Mirko_approach/2020-05-24 23:19:55.501699.h5"
+    filename = "/home/usi/catkin_ws/src/obstacles_map_builder/data/h5dataset_Mirko_approach/2020-05-25 17:54:39.655830.h5"
 
     # TODO this works only with the toy example of a .h5 generated with 1 bag file only
     with h5py.File(filename, "r") as f:
@@ -107,9 +107,6 @@ if __name__ == "__main__":
         prediction_matrix_coords_world = np.array(
             [np.matmul(transform_matrix, np.hstack((coord, 1))) for coord in prediction_matrix_coords])
 
-        # TODO: create a util to print the  obstacle_map_coords and  prediction_matrix_coords_world->
-        #   implement auto-refresh of the plot
-        # TODO: ensure what happens when the thymio reach a pose in the map which is not in obstacle_maps_coords
         # visualize_map(obstacle_map_coords, prediction_matrix_coords_world)
 
         # For each coord in  prediction_matrix_coords_world find the corrisponding one in obstacle_map_coords.
@@ -123,37 +120,53 @@ if __name__ == "__main__":
             #         coord[1],
             #         obstacle_map_coords[corresponding_coord_idx][0],
             #         obstacle_map_coords[corresponding_coord_idx][1]))
-            # TODO: achtung about the prediction initialization value of obstacle_map_coords
             obstacle_map_values[corresponding_coord_idx].append(prediction[coord_idx].detach().numpy())
 
     # TODO: throws this warning  RuntimeWarning: Mean of empty slice
     #   obstacle_map_values = [np.nanmean(prediction_values) for prediction_values in obstacle_map_values]
     obstacle_map_values[obstacle_map_values is []] = np.nan
-    obstacle_map_values = [np.nanmean(prediction_values) for prediction_values in obstacle_map_values]
+    obstacle_map_values_mean = [np.nanmean(prediction_values) for prediction_values in obstacle_map_values]
+    obstacle_map_values_median = [np.nanmedian(prediction_values) for prediction_values in obstacle_map_values]
+
 
     # Plotting
-    fig, ax = plt.subplots()
-    ax.plot(obstacle_map_coords[:, 0], obstacle_map_coords[:, 1], 'k.',
-            alpha=0.1,
-            markersize=2)
-    ax.axis("equal")
-    ax.set_xlim([-1, 1])
-    ax.set_ylim([-1, 1])
+    # ax1 = plt.subplot(2, 1, 1)
+    #
+    # sns.heatmap(np.array(obstacle_map_values_mean).reshape((200, 200)),
+    #             linewidth=0.5,
+    #             vmin=0,
+    #             vmax=1,
+    #             center=0.5,
+    #             ax=ax1,
+    #             cmap='RdYlGn')
 
-    ax = sns.heatmap(np.array(obstacle_map_values).reshape((200, 200)),
-                     linewidth=0.5,
-                     vmin=0,
-                     vmax=1,
-                     center=0.5,
-                     ax=ax,
-                     cmap='RdYlGn')
+    ax2 = plt.subplot()
+
+    sns.heatmap(np.array(obstacle_map_values_median).reshape((200, 200)),
+                linewidth=0.5,
+                vmin=0,
+                vmax=1,
+                center=0.5,
+                ax=ax2,
+                cmap='RdYlGn')
+
+    # ax3 = plt.subplot(3, 1, 3)
+    # ax3.plot(poses[:, 0], poses[:, 1], 'b.',
+    #          alpha=0.1,
+    #          markersize=7)
+
     plt.show()
-
 
     #TODO: remember that i had modified the pitch camera in the original launch file from 0.2 to 0.5
 
     # TODO:
-    #   1- create a controller that spin the Thymio in place usign what Mirko said in Slack
-    #   2- Wait Mirko to build the simple map/Resolve the funcking Gazebo save as bug
-    #   3- Create a pipiline such as you can create a .h5 with a single command
-    #   4- Create a dynamic plot?
+    #   - Send Mirko the median plot, perform the spin test in a Empty World. perform the go ahead test in a Empty World
+    #       with a can cmd vel 0.004 to set. Compare mean and median result.
+    #   - Be carefull of what is in range of the camera... you can have a can in the foreground but maybe the bot
+    #       percieves the wall in the background -> the expretiments have to be performed
+    #   - Start a doc with your notes and tries and settings
+    #   - Create a pipeline such as you can create a .h5 with a single command
+    #   - Create a dynamic plot?
+    #   - ensure what happens when the thymio reach a pose in the map which is not in obstacle_maps_coords
+
+

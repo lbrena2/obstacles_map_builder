@@ -1,50 +1,42 @@
-from oMap_builder import get_maps
+from pandas import DataFrame
 import numpy as np
-from scipy import stats
-
-# TODO seem to work but it's super slow, the initial sum approach?
-def aggregate(occ_maps):
-    occ_maps = np.array(occ_maps)
-    occ_maps_aggregated = np.ones(occ_maps[0].shape)
-    for i in range(0, occ_maps_aggregated.shape[1]):
-        cells = occ_maps[:, :, i]
-        if not np.all(cells + 1):
-            occ_maps_aggregated[0, i] = -1
-        else:
-            occ_maps_aggregated[0, i] = stats.mode(cells)[0]
-
-    return occ_maps_aggregated
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 
+# First create some toy data:
+x = np.linspace(0, 2*np.pi, 400)
+y = np.sin(x**2)
+
+# Create just a figure and only one subplot
+fig, ax = plt.subplots()
+ax.plot(x, y)
+ax.set_title('Simple plot')
+
+# Create two subplots and unpack the output array immediately
+f, (ax1, ax2) = plt.subplots(1, 2, sharey=True)
+ax1.plot(x, y)
+ax1.set_title('Sharing Y axis')
+ax2.scatter(x, y)
 
 
-if __name__ == '__main__':
-    # I've got a pose p1 and many other relative poses p2...pn from which I get many occupancy maps.
-    # First I should choose the criterion to select the n-1 other poses (time?). Then aggregate all the occupancy maps
-    # according to this rule: if all element on a given cell are -1 pick -1 for the final map; otherwise pick the mode
+# Create four polar axes and access them through the returned array
+fig, axs = plt.subplots(2, 2, subplot_kw=dict(polar=True))
+axs[0, 0].plot(x, y)
+axs[1, 1].scatter(x, y)
 
-    # So to simulate this I need a relative pose for every couple p1-pi. Then I'll need sensor readings fon any pose.
-    # At least, sensors_relative_poses is the same as well as the occ_map_coord. So, I think the best way is just to
-    # create the occ_map_values randomly, give em to aggregate.
+# Share a X axis with each column of subplots
+plt.subplots(2, 2, sharex='col')
 
-    # Create dummy occ_map_value to aggregate.
-    # get_maps(...) returns a np.array, for this example the shape is (1,120701)
-    occ_map_value_1 = np.ones((1, 120701)) * 0
-    occ_map_value_2 = np.ones((1, 120701)) * 0
-    occ_map_value_3 = np.ones((1, 120701)) * 0
-    occ_map_value_4 = np.ones((1, 120701))
-    occ_map_value_5 = np.ones((1, 120701))
+# Share a Y axis with each row of subplots
+plt.subplots(2, 2, sharey='row')
 
-    occ_maps = list()
-    occ_maps.append(occ_map_value_1)
-    occ_maps.append(occ_map_value_2)
-    occ_maps.append(occ_map_value_3)
-    occ_maps.append(occ_map_value_4)
-    occ_maps.append(occ_map_value_5)
+# Share both X and Y axes with all subplots
+plt.subplots(2, 2, sharex='all', sharey='all')
 
-    aggregated_occ_map = aggregate(occ_maps)
+# Note that this is the same as
+plt.subplots(2, 2, sharex=True, sharey=True)
 
-
-    # I suppose that at the end we have a list of np.arrays
-
-    print()
+# Create figure number 10 with a single subplot
+# and clears it if it already exists.
+fig, ax = plt.subplots(num=10, clear=True)
