@@ -11,12 +11,11 @@ class ThymioController:
         self.name = name
         self.hz = 10.0
 
-        rospy.init_node('basic_thymio_controller', disable_signals=True)
+        rospy.init_node('basic_thymio_controller')
 
         self.velocity_publisher = rospy.Publisher(self.name + '/cmd_vel',
                                                   Twist, queue_size=10)
 
-        rospy.on_shutdown(self.stop)
 
         self.rate = rospy.Rate(self.hz)
 
