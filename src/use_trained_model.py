@@ -24,12 +24,13 @@ def robot_frame_to_world_transf(pose):
     return transform
 
 
-def visualize_map(obstacle_map, coords):
+def visualize_map_coordinates(obstacle_map, coords):
+    # Plot obstacle map coordinates (4x4m) and prediction_matrix_coords on top of that
     fig, ax = plt.subplots(figsize=(15, 10))
     ax.plot(obstacle_map[:, 0], obstacle_map[:, 1], 'k.',
-            alpha=0.1, markersize=2)
+            alpha=0.1, markersize=10)
     ax.plot(coords[:, 0], coords[:, 1], 'r.',
-            alpha=0.1, markersize=4)
+            alpha=0.1, markersize=15)
     ax.axis("equal")
     plt.show()
 
@@ -53,24 +54,27 @@ def dummy_predictions(out):
             out[idx] = np.ones_like(pred)
     return out
 
+
 def plot_pic_vs_prediction(img_idx, camera_images, out):
-    #pick an image and plot it with the relative prediction
+    # pick an image and plot it with the relative prediction
     plt.subplot(1, 2, 1)
     img = camera_images[img_idx] - camera_images[img_idx].min() / (
-                camera_images[img_idx].max() - camera_images[img_idx].min())
+            camera_images[img_idx].max() - camera_images[img_idx].min())
     plt.imshow(img[:, :, ::-1])
     plt.subplot(1, 2, 2)
     sns.heatmap(out[img_idx].reshape([31, 5]))
     plt.savefig('aaaaa.svg')
     plt.show()
 
+
 def camera_image_sequence(camera_images, last_img_idx):
-    # Plot of the sequence of the images in the dataset, from the first to last_img_idx
+    # Plot of the sequence of the images in the dataset, from the first to last_img_idx-th
     for i in range(1, last_img_idx):
         plt.subplot(9, 50, i)
         img = camera_images[i] - camera_images[i].min() / (camera_images[i].max() - camera_images[i].min())
         plt.imshow(img[:, :, ::-1])
     plt.show()
+
 
 if __name__ == "__main__":
     model = NN(3, 65 * 5)
@@ -113,28 +117,29 @@ if __name__ == "__main__":
     # last_image_idx = 300
     # camera_image_sequence(camera_images, last_image_idx)
 
-
-    # TODO: All this measuraments are in meters
+    # All this measuraments are in meters
     # 4x4 meters maps
+    x = np.linspace(-2, 2, 400)
+    y = np.linspace(-2, 2, 400)
     obstacle_map_coords = np.stack(np.meshgrid(
-        np.linspace(-2, 2, 400),
-        np.linspace(-2, 2, 400),
+        x,
+        y,
     )).reshape([2, -1]).T
 
     obstacle_map_values = [[] for _ in range(obstacle_map_coords.shape[0])]
 
-    # Create the prediction matrix coord
-    prediction_matrix_coords_homo = [(0.063, 0.0493),
-                                     (0.0756, 0.0261),
-                                     (0.08, 0),
-                                     (0.0756, -0.0261),
-                                     (0.063, -0.0493)]
+    # Relative poses of the sensors wrt robot reference frame (rotation is ignored, I need a grid)
+    prediction_matrix_coords = [(0.063, 0.0493),
+                                (0.0756, 0.0261),
+                                (0.08, 0),
+                                (0.0756, -0.0261),
+                                (0.063, -0.0493)]
 
-    # Create the actual set of coordinates of the predictions. Those coords are in robot reference frame.
-    prediction_matrix_coords = np.array([np.array([x + (float(d) / 100), y])
-                                         for x, y in prediction_matrix_coords_homo for d in range(0, 31)])
+    # Create the actual set of coordinates of the predictions. Theese coords are in robot reference frame.
+    prediction_matrix_coords = np.array([np.array([x_coord + (float(d) / 100), y_coord])
+                                         for x_coord, y_coord in prediction_matrix_coords for d in range(0, 31)])
 
-    # visualize_map(obstacle_map_coords, prediction_matrix_coords)
+    # visualize_map_coordinates(obstacle_map_coords, prediction_matrix_coords)
 
     # Given the prediction coords get the corresponding coord in the obstacle map and assign it the prediction value
     for prediction, pose in tqdm.tqdm(zip(out, poses), desc='creating obstacles map'):
@@ -145,50 +150,34 @@ if __name__ == "__main__":
         prediction_matrix_coords_world = np.array(
             [np.matmul(transform_matrix, np.hstack((coord, 1))) for coord in prediction_matrix_coords])
 
-        # visualize_map(obstacle_map_coords, prediction_matrix_coords_world)
-
-        # For each coord in  prediction_matrix_coords_world find the corrisponding one in obstacle_map_coords.
-        # when you got the corrisponding coords put in obstacle_map_coords_homo
+        # TODO: USE THIS PLOT FOR SLIDES
+        # visualize_map_coordinates(obstacle_map_coords, prediction_matrix_coords)
 
         for coord_idx, coord in enumerate(prediction_matrix_coords_world):
             corresponding_coord_idx = np.argmin(
                 np.linalg.norm(obstacle_map_coords - coord[:2], axis=1))
-            # pprint('prediction_matrix_coords: (%f, %f) obstacle_map_coord: (%f, %f)'
-            #         %(coord[0],
-            #         coord[1],
-            #         obstacle_map_coords[corresponding_coord_idx][0],
-            #         obstacle_map_coords[corresponding_coord_idx][1]))
             obstacle_map_values[corresponding_coord_idx].append(prediction[coord_idx])
 
     # TODO: throws this warning  RuntimeWarning: Mean of empty slice
     #   obstacle_map_values = [np.nanmean(prediction_values) for prediction_values in obstacle_map_values]
-    # obstacle_map_values[obstacle_map_values is []] = np.nan
-    # obstacle_map_values_mean = [np.nanmean(prediction_values) for prediction_values in obstacle_map_values]
-    # obstacle_map_values_median = [np.nanmedian(prediction_values) for prediction_values in obstacle_map_values]
+    # Replace empty coords values with nan
+    for idx, coord_values in enumerate(obstacle_map_values):
+        if not coord_values:
+            obstacle_map_values[idx] = np.nan
 
-    obstacle_map_values_mean = np.zeros(len(obstacle_map_values))
-    for idx, prediction_values in enumerate(obstacle_map_values):
-        if prediction_values == []:
-            continue
-        else:
-            obstacle_map_values_mean[idx] = np.nansum(prediction_values, axis=0)
-    obstacle_map_values_mean[obstacle_map_values_mean == 0] = np.nan
+    obstacle_map_values_mean = np.array([np.nanmean(prediction_values) for prediction_values in obstacle_map_values])
+    obstacle_map_values_median = [np.nanmedian(prediction_values) for prediction_values in obstacle_map_values]
 
-    obstacle_map_values_median = np.zeros(len(obstacle_map_values))
-    for idx, prediction_values in enumerate(obstacle_map_values):
-        if prediction_values == []:
-            continue
-        else:
-            obstacle_map_values_median[idx] = np.nanmedian(prediction_values, axis=0)
-    obstacle_map_values_median[obstacle_map_values_median == 0] = np.nan
+    # Plotting Mean result against Median
+    x = [str(el)[:4] for el in x]
+    y = [str(el)[:4] for el in y]
+    obstacle_map_values_mean_df = DataFrame(obstacle_map_values_mean.reshape((400, 400)), index=x, columns=y)
 
-    # Plotting
-    ax1 = plt.subplot(2, 1, 1,
-                      aspect='equal')
+    ax1 = plt.subplot(aspect='equal')
 
     ax1.set_title('Test0_mean')
 
-    sns.heatmap(np.array(obstacle_map_values_mean).reshape((400, 400)),
+    sns.heatmap(obstacle_map_values_mean_df,
                 linewidth=0.5,
                 center=0.5,
                 ax=ax1,
@@ -196,26 +185,23 @@ if __name__ == "__main__":
                 cmap='RdYlGn_r',
                 )
 
-    ax2 = plt.subplot(2, 1, 2,
-                      aspect='equal',
-                      label='Test0_median',
-                      sharex=ax1,
-                      sharey=ax1)
-
-    ax2.set_title('Test0_median')
-
-    sns.heatmap(np.array(obstacle_map_values_median).reshape((400, 400)),
-                linewidth=0.5,
-                center=0.5,
-                ax=ax2,
-                cmap='RdYlGn_r',
-                cbar=False,
-                cbar_kws={"orientation": "horizontal"})
-
-    # ax3 = plt.subplot(3, 1, 3)
-    # ax3.plot(poses[:, 0], poses[:, 1], 'b.',
-    #          alpha=0.1,
-    #          markersize=7)
+    # ax2 = plt.subplot(2, 1, 2,
+    #                   aspect='equal',
+    #                   label='Test0_median',
+    #                   sharex=ax1,
+    #                   sharey=ax1)
+    #
+    # ax2.set_title('Test0_median')
+    # ax2.set_xticks([range(-200, 200, 1)])
+    # ax2.set_yticks([range(-200, 200, 1)])
+    #
+    # sns.heatmap(np.array(obstacle_map_values_median).reshape((400, 400)),
+    #             linewidth=0.5,
+    #             center=0.5,
+    #             ax=ax2,
+    #             cmap='RdYlGn_r',
+    #             cbar=False,
+    #             cbar_kws={"orientation": "horizontal"})
 
     plt.show()
 
