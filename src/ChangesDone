@@ -1,8 +1,0 @@
-- why the exctractor has a topic called thymio10/prox/laser? seem to not exist.. Changed it 
-- Can we put the extractor in the settings.py?
-
-
-why?
-
-if 'odom' not in topic:
-                3 == 3
