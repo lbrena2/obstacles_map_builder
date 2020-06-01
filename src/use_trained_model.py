@@ -1,7 +1,5 @@
-from pprint import pprint
 import tqdm
 from model_mirko import *
-from dataset import get_dataset, get_dataset_ranges
 from pytorchutils import *
 import h5py
 import matplotlib.pyplot as plt
@@ -70,9 +68,36 @@ def plot_pic_vs_prediction(img_idx, camera_images, out):
 def camera_image_sequence(camera_images, last_img_idx):
     # Plot of the sequence of the images in the dataset, from the first to last_img_idx-th
     for i in range(1, last_img_idx):
-        plt.subplot(9, 50, i)
+        ax = plt.subplot(9, 50, i)
+        ax.set_yticklabels([])
+        ax.set_xticklabels([])
         img = camera_images[i] - camera_images[i].min() / (camera_images[i].max() - camera_images[i].min())
         plt.imshow(img[:, :, ::-1])
+    plt.show()
+
+def plot_matrix_coords_world(prediction_matrix_coords, poses, obstacles_map_coords):
+
+    prediction_matrix_coords_world = np.ones_like(prediction_matrix_coords)
+
+    for pose in poses:
+        transform_matrix = robot_frame_to_world_transf(pose)
+
+        # prediction_matrix_coords in world ref frame
+        # prediction_matrix_coords_world = np.vstack((prediction_matrix_coords_world, np.array(
+        #     [np.matmul(transform_matrix, np.hstack((coord, 1))) for coord in prediction_matrix_coords])))
+        prediction_matrix_coords_world_tmp = np.array(
+            [np.matmul(transform_matrix, np.hstack((coord, 1))) for coord in prediction_matrix_coords])
+        prediction_matrix_coords_world  = np.vstack((prediction_matrix_coords_world,
+                                                     prediction_matrix_coords_world_tmp[:,:2]))
+
+    visualize_map_coordinates(obstacles_map_coords, prediction_matrix_coords_world)
+
+def visulize_std(camera_images):
+    std_per_image = list()
+    for idx, img in enumerate(camera_images):
+        std_per_image.append(np.std(img))
+
+    plt.plot(range(camera_images.shape[0]), std_per_image)
     plt.show()
 
 
@@ -83,7 +108,7 @@ if __name__ == "__main__":
     model.eval()
     print(model)
 
-    filename = "/home/usi/catkin_ws/src/obstacles_map_builder/data/h5dataset_Mirko_approach/2020-05-27 14:22:04.943898.h5"
+    filename = "/home/usi/catkin_ws/src/obstacles_map_builder/data/2020-05-31 23:35:51.802615.h5"
 
     # Read the dataset content
     with h5py.File(filename, "r") as f:
@@ -96,12 +121,25 @@ if __name__ == "__main__":
         camera_images = np.array(f[camera_images])
         poses = np.array(f[poses])
 
+    # Prob the best resul is obtained with just the blur and filtering by the std -> re do that!
     # Image preprocessing
+    std_per_image = list()
     for idx, img in enumerate(camera_images):
         camera_images[idx] = cv2.blur(img, (11, 11))
-        camera_images[idx] = (img - img.mean()) / (1 + img.std())
+        std_per_image.append(np.std(img))
+        camera_images[idx] = (img - np.mean(img)) / (1 + np.std(img))
+
+    # Visualize the std deviation per image
+    visulize_std(camera_images)
+
+    # Filter out the noise
+    std_per_image = np.array(std_per_image) >= 0.2
+    camera_images = camera_images[std_per_image]
+    poses = poses[std_per_image]
+
     input = torch.from_numpy(camera_images)
     input = input.permute([0, 3, 1, 2])
+
 
     # Prediction
     out = model(input.float())
@@ -111,16 +149,17 @@ if __name__ == "__main__":
     # out = dummy_predictions(out)
 
     # Pick an image and plot it with the relative prediction
-    # image_idx = 300
+    # image_idx = 30
+    #image_idx = 5
     # plot_pic_vs_prediction(image_idx, camera_images, out)
 
     # last_image_idx = 300
     # camera_image_sequence(camera_images, last_image_idx)
 
     # All this measuraments are in meters
-    # 4x4 meters maps
-    x = np.linspace(-2, 2, 400)
-    y = np.linspace(-2, 2, 400)
+    # 6x6 meters maps
+    x = np.linspace(-3, 3, 600)
+    y = np.linspace(-3, 3, 600)
     obstacle_map_coords = np.stack(np.meshgrid(
         x,
         y,
@@ -141,6 +180,8 @@ if __name__ == "__main__":
 
     # visualize_map_coordinates(obstacle_map_coords, prediction_matrix_coords)
 
+    # plot_matrix_coords_world(prediction_matrix_coords, poses, obstacle_map_coords)
+
     # Given the prediction coords get the corresponding coord in the obstacle map and assign it the prediction value
     for prediction, pose in tqdm.tqdm(zip(out, poses), desc='creating obstacles map'):
         # create the transformation from robot reference frame to world frame
@@ -150,7 +191,7 @@ if __name__ == "__main__":
         prediction_matrix_coords_world = np.array(
             [np.matmul(transform_matrix, np.hstack((coord, 1))) for coord in prediction_matrix_coords])
 
-        # TODO: USE THIS PLOT FOR SLIDES
+
         # visualize_map_coordinates(obstacle_map_coords, prediction_matrix_coords)
 
         for coord_idx, coord in enumerate(prediction_matrix_coords_world):
@@ -166,54 +207,44 @@ if __name__ == "__main__":
             obstacle_map_values[idx] = np.nan
 
     obstacle_map_values_mean = np.array([np.nanmean(prediction_values) for prediction_values in obstacle_map_values])
-    obstacle_map_values_median = [np.nanmedian(prediction_values) for prediction_values in obstacle_map_values]
+    obstacle_map_values_median = np.array([np.nanmedian(prediction_values) for prediction_values in obstacle_map_values])
 
     # Plotting Mean result against Median
     x = [str(el)[:4] for el in x]
     y = [str(el)[:4] for el in y]
-    obstacle_map_values_mean_df = DataFrame(obstacle_map_values_mean.reshape((400, 400)), index=x, columns=y)
+    obstacle_map_values_mean_df = DataFrame(obstacle_map_values_mean.reshape((600, 600)), index=x, columns=y)
+    obstacle_map_values_median_df = DataFrame(obstacle_map_values_median.reshape((600, 600)), index=x, columns=y)
 
-    ax1 = plt.subplot(aspect='equal')
 
-    ax1.set_title('Test0_mean')
-
-    sns.heatmap(obstacle_map_values_mean_df,
-                linewidth=0.5,
-                center=0.5,
-                ax=ax1,
-                cbar=False,
-                cmap='RdYlGn_r',
-                )
-
-    # ax2 = plt.subplot(2, 1, 2,
-    #                   aspect='equal',
-    #                   label='Test0_median',
-    #                   sharex=ax1,
-    #                   sharey=ax1)
+    # ax1 = plt.subplot(aspect='equal')
     #
-    # ax2.set_title('Test0_median')
-    # ax2.set_xticks([range(-200, 200, 1)])
-    # ax2.set_yticks([range(-200, 200, 1)])
+    # ax1.set_title('Test1_mean_dummy_predictions')
     #
-    # sns.heatmap(np.array(obstacle_map_values_median).reshape((400, 400)),
+    # sns.heatmap(obstacle_map_values_mean_df,
     #             linewidth=0.5,
     #             center=0.5,
-    #             ax=ax2,
+    #             ax=ax1,
+    #             cbar=True,
     #             cmap='RdYlGn_r',
-    #             cbar=False,
-    #             cbar_kws={"orientation": "horizontal"})
+    #             cbar_kws={"orientation": "horizontal"}
+    #             )
+
+    ax2 = plt.subplot(aspect='equal',
+                      label='Test0_median',
+                    )
+
+    ax2.set_title('Test1_median_dummy_predictions')
+
+
+    sns.heatmap(obstacle_map_values_median_df,
+                linewidth=0.5,
+                center=0.5,
+                ax=ax2,
+                cmap='RdYlGn_r',
+                cbar=False,
+                cbar_kws={"orientation": "horizontal"}
+                )
 
     plt.show()
 
-    # TODO: remember that i had modified the pitch camera in the original launch file from 0.2 to 0.5
 
-    # TODO:
-    #   - Send Mirko the median plot, perform the spin test in a Empty World. perform the go ahead test in a Empty World
-    #       with a can cmd vel 0.004 to set. Compare mean and median result.
-    #   - Be carefull of what is in range of the camera... you can have a can in the foreground but maybe the bot
-    #       percieves the wall in the background -> the expretiments have to be performed
-    #   - Start a doc with your notes and tries and settings
-    #   - Invert plot colourmap
-    #   - Create a pipeline such as you can create a .h5 with a single command
-    #   - Create a dynamic plot?
-    #   - ensure what happens when the thymio reach a pose in the map which is not in obstacle_maps_coords
